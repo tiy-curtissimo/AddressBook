@@ -1,12 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Data.SqlClient;
 
 namespace AddressBook
 {
     public class Rolodex
     {
-        public Rolodex()
+        public Rolodex(string connectionString)
         {
+            _connectionString = connectionString;
             _contacts = new List<Contact>();
             _recipes = new Dictionary<RecipeType, List<Recipe>>();
 
@@ -64,18 +66,37 @@ namespace AddressBook
         {
             Console.Clear();
             Console.WriteLine("RECIPES!");
-            foreach (RecipeType recipeType in _recipes.Keys)
+
+            using (SqlConnection connection = new SqlConnection(_connectionString))
             {
-                Console.WriteLine(recipeType);
+                connection.Open();
+                SqlCommand command = connection.CreateCommand();
+                command.CommandText = @"
+                    SELECT RecipeTypeId
+                         , Name
+                      FROM Recipes
+                  ORDER BY RecipeTypeId
+                         , Name
+                ";
 
-                List<Recipe> specificRecipes = _recipes[recipeType];
-                foreach (Recipe recipe in specificRecipes)
+                int currentRecipeTypeId = -323;
+                SqlDataReader reader = command.ExecuteReader();
+                while (reader.Read())
                 {
-                    Console.WriteLine($"\t{recipe}");
-                }
+                    int recipeTypeId = reader.GetInt32(0);
+                    string title = reader.GetString(1);
 
-                Console.WriteLine();
+                    if (recipeTypeId != currentRecipeTypeId)
+                    {
+                        currentRecipeTypeId = recipeTypeId;
+                        RecipeType pretty = (RecipeType)currentRecipeTypeId;
+                        Console.WriteLine(pretty.ToString().ToUpper());
+                    }
+
+                    Console.WriteLine($"  {title}");
+                }
             }
+
             Console.ReadLine();
         }
 
@@ -88,9 +109,26 @@ namespace AddressBook
 
             List<IMatchable> matchables = new List<IMatchable>();
             matchables.AddRange(_contacts);
-            matchables.AddRange(_recipes[RecipeType.Appetizers]);
-            matchables.AddRange(_recipes[RecipeType.Entreés]);
-            matchables.AddRange(_recipes[RecipeType.Desserts]);
+
+            using (SqlConnection connection = new SqlConnection(_connectionString))
+            {
+                connection.Open();
+                SqlCommand command = connection.CreateCommand();
+                command.CommandText = @"
+                    SELECT Name
+                      FROM Recipes
+                  ORDER BY Name
+                ";
+
+                SqlDataReader reader = command.ExecuteReader();
+
+                while (reader.Read())
+                {
+                    string recipeTitle = reader.GetString(0);
+                    Recipe recipe = new Recipe(recipeTitle);
+                    matchables.Add(recipe);
+                }
+            }
 
             foreach (IMatchable matcher in matchables)
             {
@@ -123,6 +161,20 @@ namespace AddressBook
             List<Recipe> specificRecipes = _recipes[choice];
             specificRecipes.Add(recipe);
             /*_recipes[choice].Add(recipe);*/
+
+            using (SqlConnection connection = new SqlConnection(_connectionString))
+            {
+                connection.Open();
+
+                SqlCommand command = connection.CreateCommand();
+                command.CommandText = @"
+                    insert into recipes(recipetypeid, name)
+                    values(@giraffe, @lemur)
+                ";
+                command.Parameters.AddWithValue("@giraffe", choice);
+                command.Parameters.AddWithValue("@lemur", title);
+                command.ExecuteNonQuery();
+            }
         }
 
         private void DoRemoveContact()
@@ -279,7 +331,8 @@ namespace AddressBook
             Console.Write("What would you like to do? ");
         }
 
-        private List<Contact> _contacts;
+        private readonly List<Contact> _contacts;
         private Dictionary<RecipeType, List<Recipe>> _recipes;
+        private readonly string _connectionString;
     }
 }
