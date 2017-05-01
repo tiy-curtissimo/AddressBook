@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Data.SqlClient;
 
 namespace AddressBook
@@ -6,6 +7,20 @@ namespace AddressBook
     public class RecipesRepository : IHandleRecipes
     {
         private string _connectionString;
+
+        public int Count
+        {
+            get
+            {
+                using (SqlConnection connection = new SqlConnection(_connectionString))
+                {
+                    connection.Open();
+                    SqlCommand command = connection.CreateCommand();
+                    command.CommandText = "SELECT COUNT(RecipeId) FROM Recipes";
+                    return (int)command.ExecuteScalar();
+                }
+            }
+        }
 
         public RecipesRepository(string connectionString)
         {
